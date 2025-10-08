@@ -1,0 +1,110 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.0.11018.127
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zentient.Abstractions.Core", "src\Zentient.Abstractions.Core.csproj", "{7979691C-1EAD-49C4-B5C2-29EA26CF97D8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{3C710D66-8622-48EA-A9E2-04C3890D861C}"
+	ProjectSection(SolutionItems) = preProject
+		docs\api.md = docs\api.md
+		docs\architecture.md = docs\architecture.md
+		docs\contributing.md = docs\contributing.md
+		docs\index.md = docs\index.md
+		docs\overview.md = docs\overview.md
+		docs\packaging.md = docs\packaging.md
+		docs\release-checklist.md = docs\release-checklist.md
+		docs\usage.md = docs\usage.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "adr", "adr", "{1A9BBE85-CA4D-477C-9CE6-19FF95794170}"
+	ProjectSection(SolutionItems) = preProject
+		docs\adr\adr-core-001-package-split-from-monolith.md = docs\adr\adr-core-001-package-split-from-monolith.md
+		docs\adr\adr-core-002-sync-first-builders-and-registries.md = docs\adr\adr-core-002-sync-first-builders-and-registries.md
+		docs\adr\adr-core-003-governance-attributes.md = docs\adr\adr-core-003-governance-attributes.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "architecture", "architecture", "{0A24571C-384F-4626-B1DB-7C01494CC455}"
+	ProjectSection(SolutionItems) = preProject
+		docs\architecture\core-vs-monolith-separation.md = docs\architecture\core-vs-monolith-separation.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "migration", "migration", "{AAD382CA-23A0-46BD-9AC2-54B9B40EC117}"
+	ProjectSection(SolutionItems) = preProject
+		docs\migration\migration-3.x-to-4.0.md = docs\migration\migration-3.x-to-4.0.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "conventions", "conventions", "{9FA72A9F-7334-4A05-BE4B-FF5C1D63C4BA}"
+	ProjectSection(SolutionItems) = preProject
+		docs\conventions\contributor-field-manual.md = docs\conventions\contributor-field-manual.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "features", "features", "{83204BC8-1625-4801-9F4E-A65B91301D24}"
+	ProjectSection(SolutionItems) = preProject
+		docs\features\concept-root-contracts.md = docs\features\concept-root-contracts.md
+		docs\features\governance-attributes.md = docs\features\governance-attributes.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "roadmap", "roadmap", "{28554478-E055-4FA6-A964-4E15B293621D}"
+	ProjectSection(SolutionItems) = preProject
+		docs\roadmap\zentient-abstractions-core-roadmap.md = docs\roadmap\zentient-abstractions-core-roadmap.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GitHub Actions", "GitHub Actions", "{19E1B3BA-3FAF-466D-A8EB-9AA737151251}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\ci-cd.yml = .github\workflows\ci-cd.yml
+		.github\workflows\docfx.yml = .github\workflows\docfx.yml
+		.github\workflows\pack-validate.yml = .github\workflows\pack-validate.yml
+		.github\workflows\pack.yml = .github\workflows\pack.yml
+		.github\workflows\versioning.yml = .github\workflows\versioning.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution", "Solution", "{C38403D4-2D8A-4295-9330-8592A9A90481}"
+	ProjectSection(SolutionItems) = preProject
+		favicon.png = favicon.png
+		versioning\GitVersion.yml = versioning\GitVersion.yml
+		global.json = global.json
+		toc.yml = toc.yml
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7979691C-1EAD-49C4-B5C2-29EA26CF97D8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7979691C-1EAD-49C4-B5C2-29EA26CF97D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7979691C-1EAD-49C4-B5C2-29EA26CF97D8}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7979691C-1EAD-49C4-B5C2-29EA26CF97D8}.Debug|x64.Build.0 = Debug|Any CPU
+		{7979691C-1EAD-49C4-B5C2-29EA26CF97D8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7979691C-1EAD-49C4-B5C2-29EA26CF97D8}.Debug|x86.Build.0 = Debug|Any CPU
+		{7979691C-1EAD-49C4-B5C2-29EA26CF97D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7979691C-1EAD-49C4-B5C2-29EA26CF97D8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7979691C-1EAD-49C4-B5C2-29EA26CF97D8}.Release|x64.ActiveCfg = Release|Any CPU
+		{7979691C-1EAD-49C4-B5C2-29EA26CF97D8}.Release|x64.Build.0 = Release|Any CPU
+		{7979691C-1EAD-49C4-B5C2-29EA26CF97D8}.Release|x86.ActiveCfg = Release|Any CPU
+		{7979691C-1EAD-49C4-B5C2-29EA26CF97D8}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{7979691C-1EAD-49C4-B5C2-29EA26CF97D8} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{1A9BBE85-CA4D-477C-9CE6-19FF95794170} = {3C710D66-8622-48EA-A9E2-04C3890D861C}
+		{0A24571C-384F-4626-B1DB-7C01494CC455} = {3C710D66-8622-48EA-A9E2-04C3890D861C}
+		{AAD382CA-23A0-46BD-9AC2-54B9B40EC117} = {3C710D66-8622-48EA-A9E2-04C3890D861C}
+		{9FA72A9F-7334-4A05-BE4B-FF5C1D63C4BA} = {3C710D66-8622-48EA-A9E2-04C3890D861C}
+		{83204BC8-1625-4801-9F4E-A65B91301D24} = {3C710D66-8622-48EA-A9E2-04C3890D861C}
+		{28554478-E055-4FA6-A964-4E15B293621D} = {3C710D66-8622-48EA-A9E2-04C3890D861C}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {49C26208-1FD2-4A50-92B0-B223C9D87C75}
+	EndGlobalSection
+EndGlobal

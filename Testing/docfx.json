@@ -1,0 +1,16 @@
+{
+  "metadata": [
+    {
+      "src": [
+        { "files": ["src/**.csproj"], "cwd": "./" }
+      ],
+      "dest": "api"
+    }
+  ],
+  "build": {
+    "content": [
+      { "files": ["**.md"] }
+    ],
+    "dest": "_site"
+  }
+}

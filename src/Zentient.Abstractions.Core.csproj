@@ -1,0 +1,56 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+
+		<!-- Multi-targeting -->
+		<TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+		<!-- Packaging metadata -->
+		<Version>0.1.0</Version>
+		<PackageId>Zentient.Abstractions.Core</PackageId>
+		<PackageVersion>$(Version)</PackageVersion>
+		<Authors>Ulf Bourelius, Zentient Framework Team</Authors>
+		<PackageAuthors>Ulf Bourelius, Zentient Framework Team</PackageAuthors>
+		<Company>Zentient Framework Team</Company>
+		<PackageCompany>Zentient Framework Team</PackageCompany>
+		<Description>Minimal, stable, sync-first, with optional async support, aligned bedrock for the Zentient framework.</Description>
+		<PackageDescription>Minimal, stable, sync-first, with optional async support, aligned bedrock for the Zentient framework.</PackageDescription>
+		<PackageTags>zentient;abstractions;core;sync-first;contracts</PackageTags>
+		<RepositoryUrl>https://github.com/ulfbou/Zentient.Abstractions.Core.git</RepositoryUrl>
+		<PackageRepositoryUrl>https://github.com/ulfbou/Zentient.Abstractions.Core</PackageRepositoryUrl>
+		<PackageRepositoryType>git</PackageRepositoryType>
+		<PackageProjectUrl>https://github.com/ulfbou/Zentient.Abstractions.Core</PackageProjectUrl>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageCopyright>Copyright (c) 2025 Zentient Framework Team</PackageCopyright>
+
+		<!-- Package readme must be the name inside the package -->
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageReleaseNotes>See CHANGELOG.md for release notes.</PackageReleaseNotes>
+
+		<!-- Ensure symbol/source packages and signing/validation flags are explicit for packing -->
+		<IncludeSymbols>true</IncludeSymbols>
+		<IncludeSource>true</IncludeSource>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+		<Deterministic>true</Deterministic>
+
+		<IsPackable>true</IsPackable>
+		<GeneratePackageOnBuild Condition="'$(Configuration)' == 'Release'">true</GeneratePackageOnBuild>
+
+		<!-- Publish repository URL for SourceLink and packaging -->
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+
+		<!-- Root namespace-->
+		<RootNamespace>Zentient.Core</RootNamespace>
+	</PropertyGroup>
+
+	<!-- Include project-local README, and repository LICENSE/CHANGELOG in package root -->
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
+		<None Include="..\LICENSE" Pack="true" PackagePath="\" />
+		<None Include="..\CHANGELOG.md" Pack="true" PackagePath="\" Condition="Exists('..\\CHANGELOG.md')" />
+	</ItemGroup>
+
+</Project>

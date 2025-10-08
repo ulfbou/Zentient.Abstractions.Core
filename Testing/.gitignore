@@ -1,0 +1,35 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Build results
+bin/
+obj/
+
+# Rider
+.idea/
+
+# NuGet
+*.nupkg
+
+# Docs
+_site/
+
+# VS Code
+.vscode/
+
+# Test results
+TestResults/
+
+# Artifacts
+artifacts/
+
+# Logs
+*.log
+
+# Docfx cache
+.docfx
+
+# Misc
+*.DS_Store

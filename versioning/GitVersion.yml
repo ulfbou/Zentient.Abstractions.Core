@@ -1,0 +1,12 @@
+mode: ContinuousDeployment
+
+branches:
+  main:
+    increment: Minor
+    prevent-increment-of-merged-branch-version: true
+    track-merge-target: false
+
+ignore:
+  sha: []
+  commits:
+    - message: 'chore(deps)'
