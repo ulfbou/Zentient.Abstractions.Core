@@ -1,0 +1,118 @@
+name: Pack and Validate
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_call: {}
+
+jobs:
+  pack-validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dotnet-version: [ '8.0.x', '9.0.x' ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+
+      - name: Install dotnet workload for source link (if needed)
+        run: |
+          dotnet workload install --skip-manifest-update || true
+
+      - name: Restore
+        run: dotnet restore src/Zentient.Abstractions.Core.csproj
+
+      - name: Run tests
+        run: |
+          dotnet test src/Zentient.Abstractions.Core.csproj -c Release --no-restore --verbosity minimal
+
+      - name: Pack Release (produce nupkg + snupkg)
+        run: |
+          mkdir -p artifacts/packages artifacts/reports
+          dotnet pack src/Zentient.Abstractions.Core.csproj -c Release -o artifacts/packages -p:PackageVersion=${{ github.run_number }} -v minimal
+
+      - name: Run PackReporter
+        run: |
+          dotnet run -p tools/PackReporter/PackReporter.csproj -- artifacts/packages/*.nupkg artifacts/reports/report-${{ matrix.dotnet-version }}.txt || true
+
+      - name: Inspect nupkg contents for target frameworks
+        run: |
+          set -euo pipefail
+          pkg=$(ls artifacts/packages/*.nupkg | head -n1 || true)
+          if [ -z "$pkg" ]; then
+            echo "No nupkg found to inspect"; exit 1
+          fi
+          echo "Inspecting $pkg"
+          # Check that package contains lib/net8.0 and lib/net9.0 entries
+          if unzip -l "$pkg" | grep -Eq "lib/(net8.0|net9.0)/"; then
+            echo "Found net8.0/net9.0 entries in package"
+          else
+            echo "Package missing expected TFMs (lib/net8.0 or lib/net9.0)" >&2
+            unzip -l "$pkg" || true
+            exit 1
+          fi
+
+      - name: Show PackageReport
+        run: |
+          echo '--- PackageReport ---'
+          sed -n '1,200p' src/bin/Release/PackageReport.txt || true
+
+      - name: Validate PackageReport contains required metadata
+        shell: bash
+        run: |
+          report=src/bin/Release/PackageReport.txt
+          if [ ! -f "$report" ]; then
+            echo "PackageReport.txt not found" >&2; exit 1
+          fi
+
+          missing=0
+
+          check_field(){
+            key="$1"
+            value=$(grep -m1 "^$key" -A0 "$report" | sed -E "s/^$key[: -]*//" | tr -d '"')
+            if [ -z "$value" ]; then
+              echo "Missing or empty: $key" >&2
+              missing=1
+            else
+              echo "$key: $value"
+            fi
+          }
+
+          # Check core fields
+          check_field "- ID"
+          check_field "- Version"
+          check_field "- Repository"
+          check_field "- Commit"
+
+          # Ensure include flags are true
+          inc_symbols=$(grep "- Include Symbols:" -m1 "$report" | sed -E "s/.*: *//")
+          inc_source=$(grep "- Include Source:" -m1 "$report" | sed -E "s/.*: *//")
+          if [ "$inc_symbols" != "true" ]; then
+            echo "Include Symbols is not true (found: $inc_symbols)" >&2; missing=1
+          fi
+          if [ "$inc_source" != "true" ]; then
+            echo "Include Source is not true (found: $inc_source)" >&2; missing=1
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            echo "Package metadata validation failed" >&2; exit 1
+          fi
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages-${{ matrix.dotnet-version }}
+          path: artifacts/packages/*
+
+      - name: Upload pack report
+        uses: actions/upload-artifact@v4
+        with:
+          name: pack-report-${{ matrix.dotnet-version }}
+          path: artifacts/reports/report-${{ matrix.dotnet-version }}.txt

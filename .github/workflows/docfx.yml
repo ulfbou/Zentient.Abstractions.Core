@@ -1,0 +1,75 @@
+# DocFX Documentation Build Workflow
+# Triggers: manual (workflow_dispatch), push to docs/*, docfx.json, assets/*, and when docfx.yml changes
+
+name: Build & Publish DocFX Documentation
+
+on:
+  workflow_dispatch: {}
+  workflow_call: {}
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'docfx.json'
+      - 'assets/**'
+      - '.github/workflows/docfx.yml'
+  release:
+    types: [published]
+
+jobs:
+  build-docfx:
+    name: Build DocFX Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK (install 9.0.100 to match global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.100'
+
+      - name: Dotnet info (diagnostic)
+        run: dotnet --info
+
+      - name: Install DocFX (pinned version)
+        run: dotnet tool install -g docfx --version 2.77.0
+
+      - name: Add .dotnet/tools to PATH
+        run: echo "${HOME}/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Build documentation
+        run: docfx docfx.json --output _site
+
+      - name: Copy additional documentation (Markdown, YAML, images)
+        run: |
+          set -euo pipefail
+          mkdir -p _site/docs
+          cp -r docs/* _site/docs/ || true
+          find . -maxdepth 1 -type f \( -name '*.md' -o -name '*.yml' \) -exec cp {} _site/ \;
+          # Copy common static assets if present
+          for ext in png jpg jpeg gif svg pdf; do
+            find docs/ -type f -name "*.$ext" -exec cp --parents {} _site/ \; || true
+          done
+          # Copy all assets (images, diagrams, etc.) from assets/ to _site/assets
+          if [ -d assets ]; then
+            mkdir -p _site/assets
+            cp -r assets/* _site/assets/ || true
+          fi
+
+      - name: Upload generated site as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docfx-site
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: _site
+          publish_branch: gh-pages
+          force_orphan: true
+
+# Notes:
+# - This workflow can be invoked directly or used as a reusable workflow via 'uses: ./.github/workflows/docfx.yml' in another workflow.

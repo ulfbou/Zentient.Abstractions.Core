@@ -1,0 +1,34 @@
+<!-- Directory.Analyzer.props -->
+<Project>
+
+  <!-- Identify Analyzer Projects -->
+  <PropertyGroup Condition="'$(IsRoslynAnalyzerProject)' != 'true' AND
+                            '$(IsAnalyzer)' != 'true' AND
+                            '$(IsTestProject)' != 'true' AND
+                            '$(MSBuildProjectName)' != '' AND
+                            $(MSBuildProjectName.Contains('Analyzer'))">
+    <IsRoslynAnalyzerProject>true</IsRoslynAnalyzerProject>
+
+    <IsRoslynAnalyzerProject Condition="'$(IsRoslynAnalyzerProject)' == ''">true</IsRoslynAnalyzerProject>
+    <IsAnalyzer Condition="'$(IsAnalyzer)' == ''">true</IsAnalyzer>
+  </PropertyGroup>
+
+  <!-- Core Analyzer Configuration -->
+  <PropertyGroup Label="Analyzer"
+                 Condition=" '$(IsAnalyzer)' == 'true' ">
+    
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Default</AnalysisMode>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);SA1200;SA1101;SA1633;SA1636;SA1609;RS0016;RS0037;SA1600;SA1649;SA1028;S1118;S1135;S125;RCS1102</NoWarn>
+    <_SkipUpgradeNetAnalyzersNuGetWarning>true</_SkipUpgradeNetAnalyzersNuGetWarning>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <IsRoslynAnalyzerProject>true</IsRoslynAnalyzerProject>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <EnableAnalyzerPackaging>true</EnableAnalyzerPackaging>
+
+  </PropertyGroup>
+
+</Project>

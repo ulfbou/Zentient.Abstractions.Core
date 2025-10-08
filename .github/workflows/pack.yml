@@ -1,0 +1,125 @@
+name: Build, Pack & Publish
+
+on:
+  push:
+    branches: [ main ]
+    tags:    # publish on tag push
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-pack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clean bin/obj
+        run: git clean -xfd src/
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '9.0'
+
+      - name: Restore
+        run: dotnet restore src/Zentient.Abstractions.Core.csproj
+
+      - name: Build (all TFMs)
+        run: dotnet build src/Zentient.Abstractions.Core.csproj -c Release
+
+      - name: Pack (all TFMs)
+        run: dotnet pack src/Zentient.Abstractions.Core.csproj -c Release -o artifacts
+
+      - name: Inspect package contents
+        run: |
+          echo "Packages in artifacts:"
+          ls -la artifacts || true
+          echo "Inspecting nupkg entries"
+          for f in artifacts/*.nupkg; do
+            echo "--- $f ---"
+            unzip -l "$f"
+          done
+
+      - name: Validate package includes README/LICENSE/CHANGELOG
+        run: |
+          set -e
+          for f in artifacts/*.nupkg; do
+            echo "Validating $f"
+            unzip -l "$f" | awk '{print $4}' | grep -Ei '(^README.md$|^LICENSE$|^CHANGELOG.md$)' >/dev/null || (echo "Missing required file in $f" && exit 1)
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-artifacts
+          path: artifacts
+
+  publish:
+    needs: build-and-pack
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '9.0'
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: package-artifacts
+          path: artifacts
+
+      - name: Import signing certificate (optional)
+        env:
+          SIGNING_PFX: ${{ secrets.SIGNING_PFX }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: |
+          if [ -z "${SIGNING_PFX}" ]; then
+            echo "No signing certificate configured; skipping import"
+          else
+            echo "Decoding signing certificate from SECRET (SIGNING_PFX)"
+            echo "${SIGNING_PFX}" | base64 --decode > signing-cert.pfx
+            ls -la signing-cert.pfx
+          fi
+
+      - name: Sign packages (optional)
+        env:
+          SIGNING_PFX: ${{ secrets.SIGNING_PFX }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: |
+          if [ -z "${SIGNING_PFX}" ]; then
+            echo "No signing certificate configured; skipping signing"
+          else
+            set -e
+            echo "Signing packages with provided PFX"
+            for p in artifacts/*.nupkg; do
+              echo "Signing $p"
+              dotnet nuget sign "$p" --certificate-path signing-cert.pfx --certificate-password "${SIGNING_PASSWORD}" --timestamper "http://timestamp.digicert.com" || { echo "Signing failed for $p"; exit 1; }
+            done
+          fi
+
+      - name: Publish packages to NuGet
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_SOURCE: ${{ secrets.NUGET_SOURCE }}
+        run: |
+          set -e
+          echo "Publishing packages..."
+          for p in artifacts/*.nupkg; do
+            echo "Pushing $p"
+            if [ -z "${NUGET_SOURCE}" ]; then
+              dotnet nuget push "$p" -k "$NUGET_API_KEY" -s https://api.nuget.org/v3/index.json --skip-duplicate
+            else
+              dotnet nuget push "$p" -k "$NUGET_API_KEY" -s "$NUGET_SOURCE" --skip-duplicate
+            fi
+          done

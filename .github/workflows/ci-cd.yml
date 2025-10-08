@@ -1,0 +1,438 @@
+# CI/CD for Zentient Monorepo - production-grade
+# Builds, tests, packs, and publishes .NET libraries and analyzers.
+# - Multi-target builds for class libraries: net8.0, net9.0
+# - Analyzers target: netstandard2.0
+# - Tests run per-matrix framework
+# - Pack & publish on semantic tag pushes
+# Rationale comments accompany each job/step for maintainability and auditing.
+
+name: CI/CD
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ develop, 'release/*' ]
+    tags: [ 'v*.*.*' ] # Release publishing only for semantic tags like v1.2.3
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+env:
+  # SOLUTION will be dynamically set in the workflow to accommodate repos without a .sln file
+  SOLUTION: ''
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+concurrency:
+  # Ensure a single CI run per branch/ref to avoid duplicated work
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Unified CI job: restore, build, test (matrix over SDK versions)
+  ci:
+    name: Build & Test (${{ matrix.dotnet-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dotnet-version: [ '8.0.x', '9.0.x' ]
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK (matrix)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+
+      - name: Ensure .NET 9.0.100 installed for global.json compatibility (only if running 8.x matrix)
+        if: startsWith(matrix.dotnet-version, '8.')
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.100'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          # Use repo-wide cache keyed by project files so matrix legs share the same cache
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Pack.props', '**/Directory.Build.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Cache dotnet tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.dotnet/tools
+          # Use global.json content hash to key tool cache across matrix
+          key: ${{ runner.os }}-dotnet-tools-${{ hashFiles('**/global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-dotnet-tools-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION }}
+
+      - name: Quick packability validation (non-fatal)
+        run: |
+          set -euo pipefail
+          echo "Checking IsPackable flags (warnings only)"
+          missing=0
+          for proj in $(git ls-files 'src/**/*.csproj' 'src/*.csproj'); do
+            if ! grep -q '<IsPackable>true</IsPackable>' "$proj"; then
+              echo "WARNING: $proj missing explicit <IsPackable>true</IsPackable>"
+              missing=1
+            fi
+          done
+          for tproj in $(git ls-files 'tests/**/*.csproj' 'tests/*.csproj'); do
+            if ! grep -q '<IsPackable>false</IsPackable>' "$tproj"; then
+              echo "WARNING: test project $tproj missing explicit <IsPackable>false</IsPackable>"
+              missing=1
+            fi
+          done
+          if [ $missing -eq 1 ]; then
+            echo "Packability check produced warnings; see repo policy. This does not block CI."
+          fi
+
+      - name: Build solution
+        run: dotnet build ${{ env.SOLUTION }} --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test ${{ env.SOLUTION }} --configuration Release --no-build --logger trx --results-directory tests/TestResults || (echo "Tests failed" && exit 1)
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.dotnet-version }}
+          path: tests/TestResults/
+
+  # Pack job: create NuGet packages (runs once after CI)
+  pack:
+    name: Pack NuGet Packages
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK (use 9.0.100 for packing)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.100
+
+      - name: Also install .NET 8.0 SDK (required to build net8.0 outputs)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          # Use repo-wide cache keyed by project files so matrix legs share the same cache
+          key: ${{ runner.os }}-nuget-pack-${{ hashFiles('**/*.csproj', '**/Directory.Pack.props', '**/Directory.Build.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-pack-
+
+      - name: Cache dotnet tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.dotnet/tools
+          # Use global.json content hash to key tool cache across matrix
+          key: ${{ runner.os }}-dotnet-tools-pack-${{ hashFiles('**/global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-dotnet-tools-pack-
+
+      - name: Ensure solution file present (detect or create)
+        run: |
+          set -euo pipefail
+          if ls *.sln 1> /dev/null 2>&1; then
+            SOL=$(ls *.sln | head -n1)
+            echo "Detected solution: $SOL"
+            echo "SOLUTION=$SOL" >> $GITHUB_ENV
+          else
+            echo "No .sln file found; creating temporary solution 'repo-sln.sln' and adding projects under src/"
+            dotnet new sln -n repo-sln
+            PROJFILES=$(git ls-files 'src/**/*.csproj' 'src/*.csproj' | tr '\n' ' ')
+            if [ -n "$PROJFILES" ]; then
+              dotnet sln repo-sln.sln add $PROJFILES || true
+            else
+              echo "Warning: no csproj files found under src/ to add to temporary solution"
+            fi
+            echo "SOLUTION=repo-sln.sln" >> $GITHUB_ENV
+          fi
+
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION }}
+
+      - name: Determine package version
+        id: pkgver
+        run: |
+          set -euo pipefail
+          echo "DEBUG: determining package version (grep limited to src/)"
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Strip v prefix if present: refs/tags/v1.2.3 -> 1.2.3
+            tag=${GITHUB_REF#refs/tags/}
+            ver=${tag#v}
+            echo "DEBUG: detected tag -> ver=$ver"
+          else
+            # Search only inside src/ for VersionPrefix to avoid matching README/workflow files
+            raw=$(grep -R -m1 "<VersionPrefix>" src || true)
+            echo "DEBUG: raw grep result: '$raw'"
+            if [ -n "$raw" ]; then
+              # extract using sed: <VersionPrefix>1.2.3</VersionPrefix>
+              extracted=$(echo "$raw" | sed -E 's/.*<VersionPrefix>([^<]+)<\/VersionPrefix>.*/\1/')
+              echo "DEBUG: sed extracted: '$extracted'"
+              ver="$extracted"
+            else
+              ver="0.0.0"
+              echo "DEBUG: no VersionPrefix found in src/, defaulting to $ver"
+            fi
+            shortsha=$(git rev-parse --short=8 HEAD)
+            date=$(date -u +%Y%m%d%H%M)
+            # Only append CI suffix when not tagging
+            ver="${ver}-ci.${date}.${shortsha}"
+            echo "DEBUG: composed ver=$ver"
+          fi
+          # sanitize: remove CR to avoid file-command format errors
+          ver=$(printf "%s" "$ver" | tr -d '\r')
+          # persist version to workspace file for later steps
+          echo "$ver" > version.txt
+          echo "DEBUG: written version.txt contents:"; cat version.txt
+
+      - name: Create artifacts dir
+        run: mkdir -p artifacts packages reports
+
+      - name: Build solution for packing
+        run: |
+          set -euo pipefail
+          echo "Building solution before packing to ensure artifacts exist"
+          dotnet build ${{ env.SOLUTION }} -c Release
+
+      - name: Pack solution (include symbols and sources)
+        run: |
+          set -euo pipefail
+          ver=$(cat version.txt)
+          echo "Packing with PackageVersion=$ver"
+          # Do not use --no-build here; ensure build artifacts are present on this runner
+          dotnet pack ${{ env.SOLUTION }} -c Release -p:PackageVersion="$ver" --include-symbols --include-source -o artifacts/packages || { echo "Pack failed"; exit 1; }
+
+      - name: Run PackReporter
+        run: |
+          # Run the PackReporter tool (if present) to produce a human-readable report
+          if [ -f tools/PackReporter/PackReporter.csproj ]; then
+            dotnet run -p tools/PackReporter/PackReporter.csproj -- artifacts/packages/*.nupkg reports/report-pack.txt || true
+          else
+            echo "PackReporter not present; skipping"
+          fi
+
+      - name: Inspect nupkg contents for target frameworks
+        run: |
+          set -euo pipefail
+          pkg=$(ls artifacts/packages/*.nupkg | head -n1 || true)
+          if [ -z "$pkg" ]; then
+            echo "No nupkg found to inspect"; exit 1
+          fi
+          echo "Inspecting $pkg"
+          if unzip -l "$pkg" | grep -Eq "lib/(net8.0|net9.0)/"; then
+            echo "Found net8.0/net9.0 entries in package"
+          else
+            echo "Package missing expected TFMs (lib/net8.0 or lib/net9.0)" >&2
+            unzip -l "$pkg" || true
+            exit 1
+          fi
+
+      - name: Show PackageReport (if generated)
+        run: |
+          if [ -f src/bin/Release/PackageReport.txt ]; then
+            echo '--- PackageReport ---'
+            sed -n '1,200p' src/bin/Release/PackageReport.txt || true
+          else
+            echo 'No PackageReport.txt generated'
+          fi
+
+      - name: Validate PackageReport contains required metadata (if present)
+        if: always()
+        shell: bash
+        run: |
+          report=src/bin/Release/PackageReport.txt
+          if [ ! -f "$report" ]; then
+            echo "PackageReport.txt not found; skipping report validation"; exit 0
+          fi
+
+          missing=0
+
+          check_field(){
+            key="$1"
+            value=$(grep -m1 "^$key" -A0 "$report" | sed -E "s/^$key[: -]*//" | tr -d '"')
+            if [ -z "$value" ]; then
+              echo "Missing or empty: $key" >&2
+              missing=1
+            else
+              echo "$key: $value"
+            fi
+          }
+
+          check_field "- ID"
+          check_field "- Version"
+          check_field "- Repository"
+          check_field "- Commit"
+
+          inc_symbols=$(grep "- Include Symbols:" -m1 "$report" | sed -E "s/.*: *//" || true)
+          inc_source=$(grep "- Include Source:" -m1 "$report" | sed -E "s/.*: *//" || true)
+          if [ -n "$inc_symbols" ] && [ "$inc_symbols" != "true" ]; then
+            echo "Include Symbols is not true (found: $inc_symbols)" >&2; missing=1
+          fi
+          if [ -n "$inc_source" ] && [ "$inc_source" != "true" ]; then
+            echo "Include Source is not true (found: $inc_source)" >&2; missing=1
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            echo "Package metadata validation failed" >&2; exit 1
+          fi
+
+      - name: Upload NuGet packages as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts/packages/
+
+      - name: Upload pack report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pack-report
+          path: reports/
+
+  # Optional: sign symbol packages if signing key available (placeholder)
+  sign-symbols:
+    name: Sign symbol packages (optional)
+    needs: pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: ./artifacts
+
+      - name: Sign symbols (conditional inside script)
+        run: |
+          set -euo pipefail
+          # secrets.SIGNING_KEY is available in runs but should not be used in expressions.
+          if [ -z "${{ secrets.SIGNING_KEY }}" ]; then
+            echo "No SIGNING_KEY configured; skipping signing steps.";
+            exit 0;
+          fi
+          echo "Signing symbols (placeholder)"
+          SIGNING_KEY="${{ secrets.SIGNING_KEY }}"
+          # Implement actual signing commands here, using $SIGNING_KEY securely.
+
+  # Publish job: push packages to NuGet.org and create GitHub release
+  publish:
+    name: Publish to NuGet & Create Release
+    needs: [ pack, sign-symbols ]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: ./artifacts
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.100
+
+      - name: Push packages to NuGet.org (packages and symbols)
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          pushed=0
+          for pkg in artifacts/*.nupkg; do
+            if [ -f "$pkg" ]; then
+              dotnet nuget push "$pkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate || { echo "Failed to push $pkg"; exit 1; }
+              pushed=$((pushed+1))
+            fi
+          done
+          for sym in artifacts/*.snupkg; do
+            if [ -f "$sym" ]; then
+              dotnet nuget push "$sym" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate || { echo "Failed to push symbol $sym"; exit 1; }
+            fi
+          done
+          if [ "$pushed" -eq 0 ]; then
+            echo "No packages found to push."; exit 1
+          fi
+
+      - name: Prepare release assets
+        run: |
+          set -euo pipefail
+          mkdir -p release_assets
+          # Copy package artifacts if present
+          shopt -s nullglob || true
+          for pkg in artifacts/*.nupkg; do
+            cp "$pkg" release_assets/ || true
+          done
+          for sym in artifacts/*.snupkg; do
+            cp "$sym" release_assets/ || true
+          done
+          # Use existing CHANGELOG/LICENSE or create minimal placeholders
+          if [ -f CHANGELOG.md ]; then
+            cp CHANGELOG.md release_assets/CHANGELOG.md
+          else
+            echo "Release triggered by $GITHUB_REF" > release_assets/CHANGELOG.md
+          fi
+          if [ -f LICENSE ]; then
+            cp LICENSE release_assets/LICENSE
+          else
+            echo "MIT License - placeholder" > release_assets/LICENSE
+          fi
+          # Copy package README files if any
+          for f in src/*/README.md; do
+            if [ -f "$f" ]; then cp "$f" release_assets/; fi
+          done
+
+      - name: Create GitHub Release and attach artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release_assets/*
+          body_path: release_assets/CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout repository for retry tagging
+        if: ${{ failure() }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create and push retry tag
+        if: ${{ failure() }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          timestamp=$(date -u +%Y%m%d%H%M%S)
+          newtag="v1.0.0-retry.${timestamp}"
+          git config user.email "actions@github.com"
+          git config user.name "github-actions[bot]"
+          git tag -f "$newtag"
+          git push --force origin "refs/tags/$newtag"
+
+# End of workflow
+# Notes:
+# - Consolidated CI reduces redundant setup and warms the NuGet cache per-matrix.
+# - Solution-level pack will only produce packages for projects with IsPackable=true.
+# - Optional signing and internal feed pushes are gated by secrets (checked at runtime in steps).

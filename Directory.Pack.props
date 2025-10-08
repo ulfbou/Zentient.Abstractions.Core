@@ -1,0 +1,179 @@
+<!-- Directory.Pack.props -->
+<!-- This file contains standardized NuGet packaging settings for all packable projects in the solution. -->
+<Project>
+
+  <!-- NuGet Package Configuration -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    
+    <!-- Package metadata -->
+    <PackageId Condition="'$(PackageId)' == ''">$(AssemblyName)</PackageId>
+    <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
+    <PackageDescription Condition="'$(PackageDescription)' == ''">$(Description)</PackageDescription>
+    <PackageAuthors Condition="'$(PackageAuthors)' == ''">$(Authors)</PackageAuthors>
+    <PackageCompany Condition="'$(PackageCompany)' == ''">Zentient Framework</PackageCompany>
+    <PackageCopyright Condition="'$(PackageCopyright)' == ''">Copyright (c) $(Year) Zentient Framework</PackageCopyright>
+
+    <!-- Package URLs and links -->
+    <PackageProjectUrl Condition="'$(PackageProjectUrl)' == ''">$([System.Text.RegularExpressions.Regex]::Replace('$(RepositoryUrl)','\.git$',''))</PackageProjectUrl>
+    <PackageRepositoryUrl Condition="'$(PackageRepositoryUrl)' == ''">$(RepositoryUrl)</PackageRepositoryUrl>
+    <PackageRepositoryType Condition="'$(PackageRepositoryType)' == ''">git</PackageRepositoryType>
+
+    <!-- Package licensing -->
+    <PackageLicenseExpression Condition="'$(PackageLicenseExpression)' == ''">MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance Condition="'$(PackageRequireLicenseAcceptance)' == ''">false</PackageRequireLicenseAcceptance>
+
+    <!-- Package documentation: make package README filename consistent inside the package -->
+    <PackageReadmeFile Condition="'$(PackageReadmeFile)' == ''">README.md</PackageReadmeFile>
+    <PackageReleaseNotes Condition="'$(PackageReleaseNotes)' == ''">See CHANGELOG.md for release notes.</PackageReleaseNotes>
+
+    <!-- Package tags and categorization -->
+    <PackageTags Condition="'$(PackageTags)' == ''">zentient;framework;library;abstractions</PackageTags>
+    <DevelopmentDependency Condition="'$(DevelopmentDependency)' == ''">false</DevelopmentDependency>
+
+    <!-- Package output configuration: force include symbols and source for packable projects -->
+    <PackageOutputPath Condition="'$(PackageOutputPath)' == ''">$(OutputPath)</PackageOutputPath>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat Condition="'$(SymbolPackageFormat)' == ''">snupkg</SymbolPackageFormat>
+    <IncludeSource>true</IncludeSource>
+
+    <!-- Embedding and determinism -->
+    <EmbedUntrackedSources Condition="'$(EmbedUntrackedSources)' == ''">true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition="'$(ContinuousIntegrationBuild)' == ''">false</ContinuousIntegrationBuild>
+    <Deterministic Condition="'$(Deterministic)' == ''">true</Deterministic>
+
+    <!-- Package validation -->
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion Condition="'$(PackageValidationBaselineVersion)' == ''"></PackageValidationBaselineVersion>
+  </PropertyGroup>
+
+  <!-- Normalized flags for diagnostics and reporting -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    <_NormalizedIncludeSymbols Condition="'$(IncludeSymbols)' == ''">true</_NormalizedIncludeSymbols>
+    <_NormalizedIncludeSymbols Condition="'$(IncludeSymbols)' != ''">$(IncludeSymbols)</_NormalizedIncludeSymbols>
+
+    <_NormalizedIncludeSource Condition="'$(IncludeSource)' == ''">true</_NormalizedIncludeSource>
+    <_NormalizedIncludeSource Condition="'$(IncludeSource)' != ''">$(IncludeSource)</_NormalizedIncludeSource>
+
+    <_NormalizedSignPackage Condition="'$(SignPackage)' == ''">false</_NormalizedSignPackage>
+    <_NormalizedSignPackage Condition="'$(SignPackage)' != ''">$(SignPackage)</_NormalizedSignPackage>
+
+    <_NormalizedPublishRepositoryUrl Condition="'$(PublishRepositoryUrl)' == ''">true</_NormalizedPublishRepositoryUrl>
+    <_NormalizedPublishRepositoryUrl Condition="'$(PublishRepositoryUrl)' != ''">$(PublishRepositoryUrl)</_NormalizedPublishRepositoryUrl>
+
+    <_NormalizedEnablePackageValidation Condition="'$(EnablePackageValidation)' == ''">true</_NormalizedEnablePackageValidation>
+    <_NormalizedEnablePackageValidation Condition="'$(EnablePackageValidation)' != ''">$(EnablePackageValidation)</_NormalizedEnablePackageValidation>
+  </PropertyGroup>
+
+  <!-- NOTE: Inline MSBuild tasks using CodeTaskFactory are not supported on the .NET SDK MSBuild used by dotnet CLI.
+       The original implementation declared an inline C# task `ReadZipEntries` and used it below to enumerate .nupkg contents.
+       That approach causes MSB4801/MSB4036 errors. For portability we remove the inline task and skip reading nupkg contents
+       from MSBuild. If you need the detailed package contents in the report, implement a separate cross-platform tool and
+       call it from the WritePackageReport target or run it in CI after packing. -->
+
+  <!-- Source Link Support: include SourceLink package for packable projects (PrivateAssets prevents flow to consumers) -->
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- Generate a deterministic PackageReport.txt after packing with richer metadata -->
+  <Target Name="WritePackageReport" AfterTargets="Pack" Condition="'$(IsPackable)' == 'true' and '$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <_ReportFile>$(MSBuildProjectDirectory)\bin\$(Configuration)\PackageReport.txt</_ReportFile>
+      <_Now>$([System.DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm:ss"))</_Now>
+
+      <!-- Simple fallbacks and sanitization -->
+      <_PkgId>$(PackageId)</_PkgId>
+      <_PkgVersion>$(PackageVersion)</_PkgVersion>
+      <_PkgDescription>$(PackageDescription)</_PkgDescription>
+      <_PkgAuthors Condition="'$(PackageAuthors)' != ''">$(PackageAuthors)</_PkgAuthors>
+      <_PkgAuthors Condition="'$(PackageAuthors)' == ''">$(Authors)</_PkgAuthors>
+      <_PkgAuthorsSanitized>$([System.Text.RegularExpressions.Regex]::Replace('$(_PkgAuthors)','\s*;\s*',', '))</_PkgAuthorsSanitized>
+
+      <_PkgCompany Condition="'$(PackageCompany)' != ''">$(PackageCompany)</_PkgCompany>
+      <_PkgCompany Condition="'$(PackageCompany)' == ''">$(Company)</_PkgCompany>
+
+      <_PkgTags>$([System.Text.RegularExpressions.Regex]::Replace('$(PackageTags)','\s*;\s*',', '))</_PkgTags>
+
+      <_TFMs Condition="'$(TargetFrameworks)' != ''">$(TargetFrameworks)</_TFMs>
+      <_TFMs Condition="'$(TargetFrameworks)' == '' and '$(TargetFramework)' != ''">$(TargetFramework)</_TFMs>
+      <_TFMs Condition="'$_TFMs' == ''">(unspecified)</_TFMs>
+
+      <!-- Choose package path sensibly -->
+      <_MainPackagePath Condition="'$(PackageOutputPath)' != ''">$(PackageOutputPath)</_MainPackagePath>
+      <_MainPackagePath Condition="'$(PackageOutputPath)' == ''">$(OutputPath)</_MainPackagePath>
+      <_MainPackagePath>$([System.Text.RegularExpressions.Regex]::Replace('$(_MainPackagePath)','[\r\n\t]+',''))</_MainPackagePath>
+
+      <_RptIncludeSymbols Condition="'$(IncludeSymbols)' == ''">true</_RptIncludeSymbols>
+      <_RptIncludeSymbols Condition="'$(IncludeSymbols)' != ''">$(IncludeSymbols)</_RptIncludeSymbols>
+      <_RptIncludeSource Condition="'$(IncludeSource)' == ''">true</_RptIncludeSource>
+      <_RptIncludeSource Condition="'$(IncludeSource)' != ''">$(IncludeSource)</_RptIncludeSource>
+      <_RptSignPackage Condition="'$(SignPackage)' == ''">false</_RptSignPackage>
+      <_RptPublishRepoUrl Condition="'$(PublishRepositoryUrl)' == ''">true</_RptPublishRepoUrl>
+      <_RptPackageValidation Condition="'$(EnablePackageValidation)' == ''">true</_RptPackageValidation>
+    </PropertyGroup>
+
+    <!-- Ensure output directory exists -->
+    <MakeDir Directories="$(MSBuildProjectDirectory)\bin\$(Configuration)" Condition="!Exists('$(MSBuildProjectDirectory)\bin\$(Configuration)')" />
+
+    <!-- Collect produced packages -->
+    <ItemGroup>
+      <_ProducedNupkgs Include="$(MSBuildProjectDirectory)\..\artifacts\packages\$(PackageId).$(PackageVersion)*.nupkg" />
+      <_ProducedSnupkgs Include="$(MSBuildProjectDirectory)\..\artifacts\packages\$(PackageId).$(PackageVersion)*.snupkg" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <_Lines Include="Package Report - $(_PkgId) v$(_PkgVersion)" />
+      <_Lines Include="Generated: $(_Now) (UTC)" />
+      <_Lines Include=" " />
+      <_Lines Include="Package Information:" />
+      <_Lines Include="- ID: $(_PkgId)" />
+      <_Lines Include="- Version: $(_PkgVersion)" />
+      <_Lines Include="- Description: $(_PkgDescription)" />
+      <_Lines Include="- Authors: $(_PkgAuthorsSanitized)" />
+      <_Lines Include="- Company: $(_PkgCompany)" />
+      <_Lines Include="- License: $(PackageLicenseExpression)" />
+      <_Lines Include="- Tags: $(_PkgTags)" />
+      <_Lines Include=" " />
+      <_Lines Include="Build Information:" />
+      <_Lines Include="- Configuration: $(Configuration)" />
+      <_Lines Include="- Target Frameworks: $(_TFMs)" />
+      <_Lines Include="- Platform: $(Platform)" />
+      <_Lines Include="- Built on: $(_Now) (UTC)" />
+      <_Lines Include="- Repository: $([System.Text.RegularExpressions.Regex]::Replace('$(PackageRepositoryUrl)','[\r\n\t]+',''))" />
+      <_Lines Include="- Branch: $(RepositoryBranch)" />
+      <_Lines Include="- Commit: $([System.Text.RegularExpressions.Regex]::Replace('$(RepositoryCommit)','[\r\n\t]+',''))" />
+      <_Lines Include=" " />
+      <_Lines Include="Package Files:" />
+      <_Lines Include="- Main Package Path: $(_MainPackagePath)" />
+      <_Lines Include="- Produced nupkgs:" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <!-- Add each produced package file path to lines -->
+      <_Lines Include="@(_ProducedNupkgs->'%(Identity)')" Condition=" '@(_ProducedNupkgs)' != '' " />
+      <_Lines Include="@(_ProducedSnupkgs->'%(Identity)')" Condition=" '@(_ProducedSnupkgs)' != '' " />
+    </ItemGroup>
+
+    <ItemGroup>
+      <_Lines Include=" " />
+      <_Lines Include="Content Files (repo):" />
+      <_Lines Include="- README.md: $(Exists('README.md'))" />
+      <_Lines Include="- CHANGELOG.md: $(Exists('CHANGELOG.md'))" />
+      <_Lines Include="- LICENSE: $(Exists('LICENSE') or Exists('LICENSE.txt') or Exists('LICENSE.md'))" />
+      <_Lines Include=" " />
+      <_Lines Include="Package Options:" />
+      <_Lines Include="- Include Symbols: $(_RptIncludeSymbols)" />
+      <_Lines Include="- Include Source: $(_RptIncludeSource)" />
+      <_Lines Include="- Package Signing: $(_RptSignPackage)" />
+      <_Lines Include="- Source Link: $(_RptPublishRepoUrl)" />
+      <_Lines Include="- Deterministic Build: $([System.Text.RegularExpressions.Regex]::Replace('$(Deterministic)','[\r\n\t]+',''))" />
+      <_Lines Include="- Package Validation: $(_RptPackageValidation)" />
+    </ItemGroup>
+
+    <WriteLinesToFile File="$(_ReportFile)" Lines="@(_Lines)" Overwrite="true" Encoding="UTF-8" />
+  </Target>
+
+</Project>

@@ -1,0 +1,40 @@
+name: Version and Changelog
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  generate-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '9.0'
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v0.9.13
+        with:
+          versionSpec: '5.x'
+
+      - name: Calculate version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v0.9.13
+
+      - name: Create changelog draft
+        run: |
+          echo "## [${{ steps.gitversion.outputs.FullSemVer }}] - $(date -I)" > CHANGELOG_AUTO.md
+          git log --pretty=format:"- %s (%h)" $(git rev-list --max-count=50 --first-parent) >> CHANGELOG_AUTO.md
+
+      - name: Upload changelog
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: CHANGELOG_AUTO.md
