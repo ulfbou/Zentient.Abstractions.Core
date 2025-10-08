@@ -1,0 +1,35 @@
+<!-- Directory.Build.targets -->
+<!-- This file is used to centralize and standardize build targets across multiple projects in a repository. -->
+<Project>
+
+  <!-- 1️⃣ Core build targets first -->
+  <Import Project="Directory.Core.targets" Condition="Exists('Directory.Core.targets')" />
+
+  <!-- 2️⃣ Packaging targets -->
+  <Import Project="Directory.Pack.targets" Condition="Exists('Directory.Pack.targets')" />
+
+  <!-- 3️⃣ Signing (must come before anything that consumes signed outputs) -->
+  <Import Project="Directory.Sign.targets"
+          Condition="Exists('Directory.Sign.targets') AND '$(EnableSigning)' == 'true'" />
+
+  <!-- 4️⃣ Testing (may override some build settings) -->
+  <Import Project="Directory.Test.targets"
+          Condition="Exists('Directory.Test.targets') AND '$(EnableTesting)' == 'true'" />
+
+  <!-- 5️⃣ Quality (depends on core/test settings) -->
+  <Import Project="Directory.Quality.targets"
+          Condition="Exists('Directory.Quality.targets') AND '$(EnableQuality)' == 'true'" />
+
+  <!-- 6️⃣ Security (may add analyzers or rules) -->
+  <Import Project="Directory.Security.targets"
+          Condition="Exists('Directory.Security.targets') AND '$(EnableSecurity)' == 'true'" />
+
+  <!-- 7️⃣ Documentation (may depend on metadata from earlier imports) -->
+  <Import Project="Directory.Documentation.targets"
+          Condition="Exists('Directory.Documentation.targets') AND '$(EnableDocumentation)' == 'true'" />
+
+  <!-- 8️⃣ Performance tuning last (so it can override build flags) -->
+  <Import Project="Directory.Performance.targets"
+          Condition="Exists('Directory.Performance.targets') AND '$(EnablePerformance)' == 'true'" />
+
+</Project>

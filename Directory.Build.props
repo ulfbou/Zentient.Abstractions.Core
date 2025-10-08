@@ -1,0 +1,35 @@
+<!-- Directory.Build.props -->
+<!-- This file is used to centralize and standardize build configurations across multiple projects in a repository. -->
+<Project>
+
+  <!-- 1️⃣ Core build configuration first -->
+  <Import Project="Directory.Core.props" Condition="Exists('Directory.Core.props')" />
+
+  <!-- 2️⃣ Packaging settings -->
+  <Import Project="Directory.Pack.props" Condition="Exists('Directory.Pack.props')" />
+
+  <!-- 3️⃣ Signing (must come before anything that consumes signed outputs) -->
+  <Import Project="Directory.Sign.props"
+          Condition="Exists('Directory.Sign.props') AND '$(EnableSigning)' == 'true'" />
+
+  <!-- 4️⃣ Testing (may override some build settings) -->
+  <Import Project="Directory.Test.props"
+          Condition="Exists('Directory.Test.props') AND '$(EnableTesting)' == 'true'" />
+
+  <!-- 5️⃣ Quality (depends on core/test settings) -->
+  <Import Project="Directory.Quality.props"
+          Condition="Exists('Directory.Quality.props') AND '$(EnableQuality)' == 'true'" />
+
+  <!-- 6️⃣ Security (may add analyzers or rules) -->
+  <Import Project="Directory.Security.props"
+          Condition="Exists('Directory.Security.props') AND '$(EnableSecurity)' == 'true'" />
+
+  <!-- 7️⃣ Documentation (may depend on metadata from earlier imports) -->
+  <Import Project="Directory.Documentation.props"
+          Condition="Exists('Directory.Documentation.props') AND '$(EnableDocumentation)' == 'true'" />
+
+  <!-- 8️⃣ Performance tuning last (so it can override build flags) -->
+  <Import Project="Directory.Performance.props"
+          Condition="Exists('Directory.Performance.props') AND '$(EnablePerformance)' == 'true'" />
+
+</Project>

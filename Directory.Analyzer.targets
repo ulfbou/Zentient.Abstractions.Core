@@ -1,0 +1,19 @@
+<!-- Directory.Analyzer.targets -->
+<!-- This file contains build targets specific to Roslyn analyzer projects. -->
+<Project>
+
+  <!-- Detect if the project is a Roslyn analyzer based on naming conventions -->
+  <PropertyGroup Condition="'$(IsRoslynAnalyzerProject)' != 'true' AND
+                            '$(IsAnalyzer)' != 'true' AND
+                            '$(IsTestProject)' != 'true' AND
+                            '$(MSBuildProjectName)' != '' AND
+                            $(MSBuildProjectName.Contains('Analyzer'))">
+    <IsRoslynAnalyzerProject>true</IsRoslynAnalyzerProject>
+
+    <IsRoslynAnalyzerProject Condition="'$(IsRoslynAnalyzerProject)' == ''">true</IsRoslynAnalyzerProject>
+    <IsAnalyzer Condition="'$(IsAnalyzer)' == ''">true</IsAnalyzer>
+  </PropertyGroup>
+  
+  <!-- Removed problematic RunAnalyzer target to prevent recursive/conflicting builds and asset file deletion. -->
+
+</Project>
